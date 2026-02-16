@@ -1,0 +1,93 @@
+version: '3.8'
+
+services:
+  # 1. Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres_db
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - hasib_network
+
+  # 2. Message Broker
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq_broker
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - hasib_network
+
+  # 3. Auth Service
+  auth-service:
+    build:
+      context: .
+      dockerfile: apps/auth-service/Dockerfile
+    container_name: auth_service
+    ports:
+      - "3000:3000"
+    environment:
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - JWT_SECRET=${JWT_SECRET}
+      - RABBITMQ_URL=${RABBITMQ_URL}
+    depends_on:
+      - postgres
+      - rabbitmq
+    networks:
+      - hasib_network
+
+  # 4. User Service
+  user-service:
+    build:
+      context: .
+      dockerfile: apps/user-service/Dockerfile
+    container_name: user_service
+    ports:
+      - "3001:3001"
+    environment:
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - JWT_SECRET=${JWT_SECRET}
+      - RABBITMQ_URL=${RABBITMQ_URL}
+    depends_on:
+      - postgres
+      - rabbitmq
+    networks:
+      - hasib_network
+
+  # 5. Frontend (Fixed network name and added environment mapping)
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        - VITE_AUTH_SERVICE_URL=http://localhost:3000
+        - VITE_USER_SERVICE_URL=http://localhost:3001
+    ports:
+      - "80:80"
+    depends_on:
+      - auth-service
+      - user-service
+    networks:
+      - hasib_network  # Fixed: changed dash to underscore
+
+networks:
+  hasib_network: # The "source of truth" name
+    driver: bridge
+
+volumes:
+  postgres_data:
