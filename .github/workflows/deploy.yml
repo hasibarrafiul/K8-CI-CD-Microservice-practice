@@ -9,7 +9,6 @@ on:
       - 'k8s/**'
       - '.github/workflows/**'
 
-# Added permissions so the script can push changes back to your repo
 permissions:
   contents: write
 
@@ -17,29 +16,30 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
     strategy:
+      # We keep this true so all services build in parallel for speed
+      fail-fast: false
       matrix:
         include:
           - service_name: auth-service
             context: .
             dockerfile: apps/auth-service/Dockerfile
             image_name: hasib-auth
-            yaml_path: k8s/auth-service.yaml  # Ensure this matches your filename
+            yaml_path: k8s/auth-service.yaml
           - service_name: user-service
             context: .
             dockerfile: apps/user-service/Dockerfile
             image_name: hasib-user
-            yaml_path: k8s/user-service.yaml # Ensure this matches your filename
+            yaml_path: k8s/user-service.yaml
           - service_name: frontend
             context: ./frontend
             dockerfile: frontend/Dockerfile
             image_name: hasib-frontend
-            yaml_path: k8s/frontend.yaml # Ensure this matches your filename
+            yaml_path: k8s/frontend.yaml
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          # Fetch all history so we can push changes back
           fetch-depth: 0
 
       - name: Set up Docker Buildx
@@ -64,20 +64,26 @@ jobs:
             VITE_AUTH_SERVICE_URL=${{ secrets.VITE_AUTH_SERVICE_URL }}
             VITE_USER_SERVICE_URL=${{ secrets.VITE_USER_SERVICE_URL }}
 
-      # The "Magic" Step: Updating the K8s manifest with the new SHA
       - name: Update Kubernetes YAML
         run: |
+          # Use | as a delimiter in sed to avoid issues with slashes in image names
           sed -i "s|image: ${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_name }}:.*|image: ${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_name }}:${{ github.sha }}|g" ${{ matrix.yaml_path }}
 
       - name: Commit and Push Changes
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
           git add ${{ matrix.yaml_path }}
-          # Check if there are changes to avoid error on empty commit
+          
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
             git commit -m "chore: update ${{ matrix.service_name }} image to ${{ github.sha }}"
-            git push origin main
+            
+            # The "Sync" Logic: 
+            # We use a loop to retry the push in case another matrix job pushes first
+            for i in {1..5}; do
+              git pull --rebase origin main && git push origin main && break || sleep 5
+            done
           fi
