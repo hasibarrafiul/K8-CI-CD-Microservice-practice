@@ -26,7 +26,7 @@ spec:
     spec:
       containers:
       - name: user-service
-        image: hasibarrafiulfahim/hasib-user:5709df078dda4666b195a3e323844f3d1ee06895
+        image: hasibarrafiulfahim/hasib-user:64a606059aac66ab8e7e6b6ab7d44d9a75a496b0
         env:
         - name: DB_HOST
           value: "postgres-service"
