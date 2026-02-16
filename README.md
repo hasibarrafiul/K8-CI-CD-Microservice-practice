@@ -1,98 +1,87 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+🚀 Hasib Platform: Cloud Recovery Guide
+This guide explains how to recreate the entire Kubernetes environment on Azure AKS and redeploy the application using Argo CD.
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+📋 Prerequisites
+Azure CLI installed and logged in (az login).
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+kubectl installed.
 
-## Description
+GitHub Repository containing your k8s/ folder and deploy.yml.
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+Docker Hub account with your images already pushed.
 
-## Project setup
+🛠 Step 1: Create the Azure Infrastructure
+First, recreate the Resource Group and the AKS Cluster.
 
-```bash
-$ npm install
-```
+Bash
+# 1. Create Resource Group
+az group create --name hasib-platform-rg --location westus2
 
-## Compile and run the project
+# 2. Create AKS Cluster (1 Node is enough for practice)
+az aks create \
+    --resource-group hasib-platform-rg \
+    --name hasib-aks-cluster \
+    --node-count 1 \
+    --generate-ssh-keys
 
-```bash
-# development
-$ npm run start
+# 3. Connect your local terminal to the new cluster
+az aks get-credentials --resource-group hasib-platform-rg --name hasib-aks-cluster --overwrite-existing
+🎡 Step 2: Install Argo CD
+Now that the cluster is alive, we need to install the "Brain" that manages the deployments.
 
-# watch mode
-$ npm run start:dev
+Bash
+# 1. Create the namespace for Argo CD
+kubectl create namespace argocd
 
-# production mode
-$ npm run start:prod
-```
+# 2. Install Argo CD
+kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 
-## Run tests
+# 3. Access the Argo CD UI (Change Service type to LoadBalancer)
+kubectl patch svc argocd-server -n argocd -p '{"spec": {"type": "LoadBalancer"}}'
+To Log In:
 
-```bash
-# unit tests
-$ npm run test
+Get the External IP: kubectl get svc argocd-server -n argocd
 
-# e2e tests
-$ npm run test:e2e
+Get the default password:
 
-# test coverage
-$ npm run test:cov
-```
+Bash
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 --decode
+Login at the IP with username: admin and the password above.
 
-## Deployment
+🔗 Step 3: Connect your GitHub Repo to Argo CD
+In the Argo CD UI, click + New App.
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+Application Name: hasib-platform
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+Project: default
 
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
+Sync Policy: Automatic (Check 'Prune Resources' and 'Self Heal').
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+Source:
 
-## Resources
+Repository URL: Your GitHub Repo URL.
 
-Check out a few resources that may come in handy when working with NestJS:
+Path: k8s (This points to the folder where your .yaml files live).
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+Destination:
 
-## Support
+Cluster URL: https://kubernetes.default.svc
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+Namespace: default
 
-## Stay in touch
+Click Create.
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+🧪 Step 4: Verify Deployment
+Once Argo CD finishes syncing, verify your pods are running:
 
-## License
+Bash
+kubectl get pods
+kubectl get svc
+Copy the EXTERNAL-IP of the frontend-service and paste it into your browser.
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+📝 Important Maintenance Notes
+Updating Code: Just git push to your main branch. GitHub Actions will build the new image, update the YAML, and Argo CD will automatically pull the change.
+
+CORS/DNS: If your Azure Load Balancer IP changes after recreation, you must update your GitHub Secrets and re-run the CI/CD to update the API URLs in the frontend.
+
+Shutting Down: To save money, run az group delete --name hasib-platform-rg --yes --no-wait.
