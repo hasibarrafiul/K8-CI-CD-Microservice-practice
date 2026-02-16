@@ -3,35 +3,44 @@ name: Build and Push Microservices
 on:
   push:
     branches: [ "main" ]
-    # Only trigger when code in these directories changes
     paths:
       - 'apps/**'
       - 'frontend/**'
+      - 'k8s/**'
       - '.github/workflows/**'
+
+# Added permissions so the script can push changes back to your repo
+permissions:
+  contents: write
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
     strategy:
-      # This runs all 3 builds at the same time!
       matrix:
         include:
           - service_name: auth-service
             context: .
             dockerfile: apps/auth-service/Dockerfile
             image_name: hasib-auth
+            yaml_path: k8s/auth-service.yaml  # Ensure this matches your filename
           - service_name: user-service
             context: .
             dockerfile: apps/user-service/Dockerfile
             image_name: hasib-user
+            yaml_path: k8s/user-service.yaml # Ensure this matches your filename
           - service_name: frontend
             context: ./frontend
             dockerfile: frontend/Dockerfile
             image_name: hasib-frontend
+            yaml_path: k8s/frontend.yaml # Ensure this matches your filename
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          # Fetch all history so we can push changes back
+          fetch-depth: 0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -48,11 +57,27 @@ jobs:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           push: true
-          # We tag it with 'latest' and the short Git commit SHA for versioning
           tags: |
             ${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_name }}:latest
             ${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_name }}:${{ github.sha }}
-          # Inject Build Args for the Frontend
           build-args: |
             VITE_AUTH_SERVICE_URL=${{ secrets.VITE_AUTH_SERVICE_URL }}
             VITE_USER_SERVICE_URL=${{ secrets.VITE_USER_SERVICE_URL }}
+
+      # The "Magic" Step: Updating the K8s manifest with the new SHA
+      - name: Update Kubernetes YAML
+        run: |
+          sed -i "s|image: ${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_name }}:.*|image: ${{ secrets.DOCKER_HUB_USERNAME }}/${{ matrix.image_name }}:${{ github.sha }}|g" ${{ matrix.yaml_path }}
+
+      - name: Commit and Push Changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add ${{ matrix.yaml_path }}
+          # Check if there are changes to avoid error on empty commit
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore: update ${{ matrix.service_name }} image to ${{ github.sha }}"
+            git push origin main
+          fi
