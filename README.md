@@ -6,7 +6,7 @@ This repository contains the full GitOps pipeline for the Hasib Platform, runnin
 
 ## 🏗 1. Infrastructure Setup (Azure)
 
-Run these commands to recreate your cluster from scratch.
+Run these commands to recreate your cluster from scratch. (Terraform code is also included)
 
 ```bash
 # Create the Resource Group
