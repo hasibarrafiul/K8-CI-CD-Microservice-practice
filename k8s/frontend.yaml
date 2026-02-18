@@ -27,6 +27,6 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: hasibarrafiulfahim/frontend:394b7c1efdaf1e8c8b5315e08d130d11e01447d4
+        image: hasibarrafiulfahim/frontend:da176c49a0665a073d599a856f5286713eec4223
         ports:
         - containerPort: 80
