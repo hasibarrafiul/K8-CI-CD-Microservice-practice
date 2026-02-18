@@ -26,7 +26,7 @@ spec:
     spec:
       containers:
         - name: user-service
-          image: hasibarrafiulfahim/hasib-user:55d610ed66bd32663faaaaabd6f90bdf97717318
+          image: hasibarrafiulfahim/hasib-user:394b7c1efdaf1e8c8b5315e08d130d11e01447d4
           imagePullPolicy: Always
           ports:
             - containerPort: 3001
