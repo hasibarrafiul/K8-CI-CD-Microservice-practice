@@ -26,7 +26,7 @@ spec:
     spec:
       containers:
       - name: auth-service
-        image: hasibarrafiulfahim/hasib-auth:64a606059aac66ab8e7e6b6ab7d44d9a75a496b0
+        image: hasibarrafiulfahim/hasib-auth:acb9b44f364f971a86caec76a240f8dfddfea10f
         imagePullPolicy: Always
         ports:
         - containerPort: 3000
